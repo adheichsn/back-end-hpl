@@ -26,8 +26,9 @@
 //     }
 // })
 
-import { ok, fail } from "~/utils/response"
-import { requireGuestId } from "~/utils/auth"
+import { randomUUID } from "node:crypto"
+import { ok, fail } from "~/server/utils/response"
+import { requireGuestId } from "~/server/utils/auth"
 import { getSession, finishSession } from "~/server/data/hpl.sessions"
 
 export default defineEventHandler(async (event) => {
@@ -42,14 +43,28 @@ export default defineEventHandler(async (event) => {
     if (s.guestId !== guestId) return fail("FORBIDDEN", { details: "not your session" }, "AUTH_403")
 
     const body = await readBody(event)
+    const game_id = randomUUID()
+
+    const game = {
+        game_id,
+        minigameId: s.minigameId,
+        created_at: new Date().toISOString(),
+        payload: body,
+    }
+
+    const updated = finishSession(id, {
+        submittedAt: new Date().toISOString(),
+        game, // ✅ satu objek rapi
+    })
 
     const score = typeof body?.score === "number" ? body.score : 123
 
-    const updated = finishSession(id, { submittedAt: new Date().toISOString(), lastSubmit: body })
-
     return ok({
-        sessionId: id,
+        sessionId: updated?.sessionId,
         status: updated?.status,
-        score
+        state: updated?.state,
+        expiresAt: updated?.expiresAt,
+        game_id: updated?.state?.game?.game_id ?? game_id,
     })
 })
+

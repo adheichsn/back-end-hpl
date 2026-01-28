@@ -37,8 +37,8 @@
 // })
 
 import { z } from "zod"
-import { ok, fail } from "~/utils/response"
-import { requireGuestId } from "~/utils/auth"
+import { ok, fail } from "~/server/utils/response"
+import { requireGuestId } from "~/server/utils/auth"
 import { createSession } from "~/server/data/hpl.sessions"
 
 const BodySchema = z.object({

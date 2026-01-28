@@ -1,4 +1,4 @@
-import { ok, fail } from "~/utils/response"
+import { ok, fail } from "~/server/utils/response"
 import { LEVELS } from "~/server/data/minigames.dummy"
 import type { MinigameSlug } from "~/server/data/minigames.dummy"
 

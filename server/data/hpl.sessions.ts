@@ -33,6 +33,11 @@ export function getSession(sessionId: string) {
     return sessions.get(sessionId) || null
 }
 
+export function listSessionsByGuestId(guestId: string) {
+  return Array.from(sessions.values()).filter((s) => s.guestId === guestId)
+}
+
+
 export function finishSession(sessionId: string, patch?: any) {
     const s = sessions.get(sessionId)
     if (!s) return null

@@ -1,6 +1,6 @@
 import crypto from "node:crypto"
-import { signGuestToken } from "~/utils/guestJwt"
-import { ok } from "~/utils/response"
+import { signGuestToken } from "~/server/utils/guestJwt"
+import { ok } from "~/server/utils/response"
 
 export default defineEventHandler(async () => {
     const config = useRuntimeConfig()

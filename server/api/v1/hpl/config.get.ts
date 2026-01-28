@@ -1,4 +1,4 @@
-import { ok, fail } from "~/utils/response"
+import { ok, fail } from "~/server/utils/response"
 import { MINIGAMES } from "~/server/data/minigames.dummy"
 // import { useHplClient } from "~/server/services/hpl.client"
 
