@@ -1,35 +1,7 @@
-// import { ok, fail } from "~/utils/response"
-// import { requireGuestId } from "~/utils/auth"
-// import { useHplClient } from "~/server/services/hpl.client"
-
-// export default defineEventHandler(async (event) => {
-//     const guestId = requireGuestId(event)
-//     if (!guestId) {
-//         return fail("UNAUTHORIZED", { details: "missing/invalid token" }, "AUTH_401")
-//     }
-
-//     const id = getRouterParam(event, "id")
-//     if (!id) return fail("VALIDATION_ERROR", { details: "missing id" }, "VAL_001")
-
-//     const body = await readBody(event)
-
-//     try {
-//         const { fetchHpl } = useHplClient()
-//         const msResp: any = await fetchHpl(`/session/${id}/submit`, {
-//             method: "POST",
-//             body: { ...body, guestId },
-//         })
-
-//         return ok(msResp)
-//     } catch (e: any) {
-//         return fail("UPSTREAM_ERROR", { details: e?.message }, "UP_502")
-//     }
-// })
-
-import { randomUUID } from "node:crypto"
 import { ok, fail } from "~/server/utils/response"
 import { requireGuestId } from "~/server/utils/auth"
-import { getSession, finishSession } from "~/server/data/hpl.sessions"
+import { getSession, patchSession } from "~/server/data/hpl.sessions"
+import { MINIGAMES } from "~/server/data/minigames.dummy"
 
 export default defineEventHandler(async (event) => {
     const guestId = requireGuestId(event)
@@ -43,28 +15,50 @@ export default defineEventHandler(async (event) => {
     if (s.guestId !== guestId) return fail("FORBIDDEN", { details: "not your session" }, "AUTH_403")
 
     const body = await readBody(event)
-    const game_id = randomUUID()
+    const submittedAt = new Date().toISOString()
 
-    const game = {
-        game_id,
-        minigameId: s.minigameId,
-        created_at: new Date().toISOString(),
-        payload: body,
-    }
+    const scoreRaw = body?.score
+    const score =
+        typeof scoreRaw === "number" && Number.isFinite(scoreRaw) && scoreRaw >= 0
+            ? scoreRaw
+            : 0
 
-    const updated = finishSession(id, {
-        submittedAt: new Date().toISOString(),
-        game, // ✅ satu objek rapi
+    const completed: string[] = Array.isArray(s.state?.completed) ? s.state.completed : []
+    const scores: Record<string, number> =
+        typeof s.state?.scores === "object" && s.state?.scores ? s.state.scores : {}
+
+    const current = s.minigameId
+    const completedNext = completed.includes(current) ? completed : [...completed, current]
+    const scoresNext = { ...scores, [current]: score }
+
+    const total = MINIGAMES.length
+    const progress = total > 0 ? Math.round((completedNext.length / total) * 100) : 0
+
+    const updated = patchSession(id, {
+        submittedAt,
+        completed: completedNext,
+        scores: scoresNext,
+        lastPayload: body,
+        progress,
     })
 
-    const score = typeof body?.score === "number" ? body.score : 123
+    console.log("[DUMMY] SUBMIT -> MARSHALL", {
+        guestId,
+        gameId: s.gameId,
+        sessionId: s.sessionId,
+        minigameId: s.minigameId,
+        score,
+        payload: body,
+    })
 
     return ok({
         sessionId: updated?.sessionId,
         status: updated?.status,
-        state: updated?.state,
         expiresAt: updated?.expiresAt,
-        game_id: updated?.state?.game?.game_id ?? game_id,
+
+        gameId: s.gameId,
+        minigameId: s.minigameId,
+
+        state: updated?.state,
     })
 })
-

@@ -5,5 +5,8 @@ export default defineNuxtConfig({
   runtimeConfig: {
     GUEST_JWT_SECRET: process.env.GUEST_JWT_SECRET,
     HPL_MS_URL: process.env.HPL_MS_URL,
+      public: {
+      PUBLISH_BASE_URL: process.env.PUBLISH_BASE_URL || ""
+    }
   }
 })
