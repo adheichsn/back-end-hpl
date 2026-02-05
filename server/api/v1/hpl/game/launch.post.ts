@@ -15,13 +15,11 @@ export default defineEventHandler(async (event) => {
     if (!gameId) return fail("VALIDATION_ERROR", { details: "missing gameId" }, "VAL_001")
     if (!minigameId) return fail("VALIDATION_ERROR", { details: "missing minigameId" }, "VAL_001")
 
-    // validasi minigameId dari dummy list
     const exists = MINIGAMES.some((m) => m.slug === minigameId)
     if (!exists) return fail("VALIDATION_ERROR", { details: "invalid minigameId" }, "VAL_001")
 
     const s = createSession({ guestId, gameId, minigameId })
 
-    // public publish token (shareable lintas device)
     const pub = createPublishLink({
         sessionId: s.sessionId,
         gameId,
@@ -29,10 +27,14 @@ export default defineEventHandler(async (event) => {
         ttlMinutes: 60,
     })
 
-    // bangun full URL publish (domain dari request)
-    const url = new URL(event.node.req.url || "/", `http://${event.node.req.headers.host}`)
-    const linkPublish = `${url.origin}/api/v1/hpl/p/${pub.token}`
+    const config = useRuntimeConfig()
+    const feBase = (config.FE_BASE_URL as string | undefined)?.replace(/\/$/, "")
+    if (!feBase) {
+        return fail("CONFIG_ERROR", { details: "FE_BASE_URL is not set" }, "CFG_001")
+    }
+    const linkPublish = `${feBase}/p/${pub.token}`
 
+    // simpan ke session
     attachPublish(s.sessionId, { token: pub.token, url: linkPublish })
 
     // TODO: notify MARSHALL (dummy)
@@ -42,6 +44,7 @@ export default defineEventHandler(async (event) => {
         sessionId: s.sessionId,
         minigameId,
         linkPublish,
+        publishToken: pub.token,
     })
 
     return ok({
