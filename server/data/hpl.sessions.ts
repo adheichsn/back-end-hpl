@@ -1,22 +1,36 @@
+type StepId = "intro" | "play" | "result"
+
 type Session = {
     sessionId: string
     guestId: string
-
-    // NEW:
     gameId: string
-    minigameId: string
-    linkPublishToken?: string
-    linkPublishUrl?: string
+
+    minigameId: StepId
 
     createdAt: string
     expiresAt: string
-    state: any
     status: "RUNNING" | "FINISHED"
+
+    state: {
+        flow: {
+            stepId: StepId
+            stepIndex: number
+            totalSteps: number
+            progress: number
+            completedSteps: StepId[]
+        }
+        marshall?: {
+            id_requests?: string
+            game_type?: string
+        }
+        submissions: Array<{ stepId: StepId; submittedAt: string; payload: any }>
+        lastPayload?: any
+    }
 }
 
 const sessions = new Map<string, Session>()
 
-export function createSession(input: { guestId: string; gameId: string; minigameId: string }) {
+export function createSession(input: { guestId: string; gameId: string }) {
     const sessionId = "sess_" + Math.random().toString(16).slice(2)
     const now = new Date()
     const expiresAt = new Date(now.getTime() + 15 * 60 * 1000)
@@ -25,11 +39,20 @@ export function createSession(input: { guestId: string; gameId: string; minigame
         sessionId,
         guestId: input.guestId,
         gameId: input.gameId,
-        minigameId: input.minigameId,
+        minigameId: "intro",
         createdAt: now.toISOString(),
         expiresAt: expiresAt.toISOString(),
         status: "RUNNING",
-        state: { progress: 0 }
+        state: {
+            flow: {
+                stepId: "intro",
+                stepIndex: 0,
+                totalSteps: 3,
+                progress: 0,
+                completedSteps: [],
+            },
+            submissions: [],
+        },
     }
 
     sessions.set(sessionId, s)
@@ -38,10 +61,6 @@ export function createSession(input: { guestId: string; gameId: string; minigame
 
 export function getSession(sessionId: string) {
     return sessions.get(sessionId) || null
-}
-
-export function listSessionsByGuestId(guestId: string) {
-    return Array.from(sessions.values()).filter((s) => s.guestId === guestId)
 }
 
 export function finishSession(sessionId: string, patch?: any) {
@@ -53,27 +72,19 @@ export function finishSession(sessionId: string, patch?: any) {
     return s
 }
 
-export function attachPublish(sessionId: string, patch: { token: string; url: string }) {
+export function patchSession(sessionId: string, patch?: any) {
     const s = sessions.get(sessionId)
     if (!s) return null
-    s.linkPublishToken = patch.token
-    s.linkPublishUrl = patch.url
+    s.state = { ...s.state, ...(patch || {}) }
     sessions.set(sessionId, s)
     return s
 }
 
-export function patchSession(sessionId: string, patch?: any) {
-  const s = sessions.get(sessionId)
-  if (!s) return null
-  s.state = { ...s.state, ...(patch || {}) }
-  sessions.set(sessionId, s)
-  return s
-}
-
-export function setMinigame(sessionId: string, minigameId: string) {
-  const s = sessions.get(sessionId)
-  if (!s) return null
-  s.minigameId = minigameId
-  sessions.set(sessionId, s)
-  return s
+export function setMinigame(sessionId: string, stepId: StepId) {
+    const s = sessions.get(sessionId)
+    if (!s) return null
+    s.minigameId = stepId
+    s.state.flow.stepId = stepId
+    sessions.set(sessionId, s)
+    return s
 }
