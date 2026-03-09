@@ -1,0 +1,42 @@
+name: Mirror GitHub to GitLab Amoeba
+
+on:
+  push:
+    branches:
+      - '**'
+    tags:
+      - '*'
+  workflow_dispatch:
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Add GitLab remote
+        run: |
+          git remote add gitlab "https://${{ secrets.GITLAB_USERNAME }}:${{ secrets.GITLAB_TOKEN }}@git.digitalamoeba.id/KMDT-Projects/back-end-hpl.git"
+
+      - name: Push branch to GitLab
+        run: |
+          if [[ "${GITHUB_REF}" == refs/heads/* ]]; then
+            BRANCH="${GITHUB_REF#refs/heads/}"
+            git push gitlab "HEAD:${BRANCH}"
+          fi
+
+      - name: Push tag to GitLab
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+            git push gitlab "refs/tags/${TAG}:refs/tags/${TAG}"
+          fi
