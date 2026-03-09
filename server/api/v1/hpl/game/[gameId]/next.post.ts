@@ -1,8 +1,6 @@
 import { ok, fail } from "~/server/utils/response"
 import { requireGuestId } from "~/server/utils/auth"
-import { getSession, setMinigame, finishSession, patchSession } from "~/server/data/hpl.sessions"
-
-const STEPS = ["intro", "play", "result"] as const
+import { getSession, finishSession } from "~/server/data/hpl.sessions"
 
 export default defineEventHandler(async (event) => {
     const guestId = requireGuestId(event)
@@ -12,7 +10,7 @@ export default defineEventHandler(async (event) => {
     if (!gameId) return fail("VALIDATION_ERROR", { details: "missing gameId" }, "VAL_001")
 
     const body = await readBody(event)
-    const sessionId = body?.sessionId as string | undefined
+    const sessionId = String(body?.sessionId ?? "").trim()
     if (!sessionId) return fail("VALIDATION_ERROR", { details: "missing sessionId" }, "VAL_001")
 
     const s = getSession(sessionId)
@@ -21,50 +19,38 @@ export default defineEventHandler(async (event) => {
     if (s.gameId !== gameId) return fail("FORBIDDEN", { details: "session not in this game" }, "AUTH_403")
 
     if (s.status === "FINISHED") {
-        return ok({ done: true, status: "FINISHED", sessionId: s.sessionId, gameId: s.gameId, stepId: s.state.flow.stepId, state: s.state, expiresAt: s.expiresAt })
+        return ok(
+            {
+                done: true,
+                sessionId: s.sessionId,
+                status: s.status,
+                gameId: s.gameId,
+                state: s.state,
+                expiresAt: s.expiresAt,
+            },
+            "Already finished"
+        )
     }
 
-    const current = s.state.flow.stepId
-    const completed = Array.isArray(s.state.flow.completedSteps) ? s.state.flow.completedSteps : []
+    const submissions = Array.isArray(s.state?.submissions) ? s.state.submissions : []
+    const hasSubmitted = submissions.length > 0
 
-    // rule: selain intro, step harus sudah submit sebelum next
-    if (current !== "intro" && !completed.includes(current)) {
-        return fail("VALIDATION_ERROR", { details: "current step not submitted yet" }, "VAL_002")
+    if (!hasSubmitted) {
+        setResponseStatus(event, 422)
+        return fail("VALIDATION_ERROR", { details: "submit required before finish" }, "VAL_SUBMIT_REQUIRED")
     }
 
-    const idx = STEPS.findIndex((x) => x === current)
-    if (idx < 0) return fail("VALIDATION_ERROR", { details: "invalid stepId" }, "VAL_003")
+    const done = finishSession(sessionId)
 
-    const next = STEPS[idx + 1]
-    if (!next) {
-        const done = finishSession(sessionId, {
-            flow: { ...s.state.flow, progress: 100 },
-        })
-        return ok({
+    return ok(
+        {
             done: true,
             sessionId: done?.sessionId,
             status: done?.status,
             gameId: done?.gameId,
-            stepId: done?.state.flow.stepId,
             state: done?.state,
             expiresAt: done?.expiresAt,
-        })
-    }
-
-    setMinigame(sessionId, next)
-
-    const progress = Math.round(((idx + 1) / STEPS.length) * 100)
-    const updated = patchSession(sessionId, {
-        flow: { ...s.state.flow, stepId: next, stepIndex: idx + 1, progress },
-    })
-
-    return ok({
-        done: false,
-        sessionId: updated?.sessionId,
-        status: updated?.status,
-        gameId: updated?.gameId,
-        stepId: next,
-        state: updated?.state,
-        expiresAt: updated?.expiresAt,
-    })
+        },
+        "Finished"
+    )
 })
